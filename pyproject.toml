@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "aquliz_bot"
+version = "0.1.0"
+description = ""
+authors = ["svyatoslavoh <alegkonin@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+Flask = "^1.1.2"
+aiogram = "^2.19"
+MarkupSafe = "2.0.1"
+cowsay = "^4.0"
+icecream = "^2.1.2"
+requests = "^2.27.1"
+cx-Oracle = "^8.3.0"
+SQLAlchemy = "^1.4.32"
+aiogram-calendar = "^0.1.1"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

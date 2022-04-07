@@ -67,6 +67,17 @@ def check_summ(bill_summ):
 
     return float(new)
 
+def check_bonus(bonus_info, value):
+    general_max, premium_max, general_min, premium_min, gold_min, gold_max = bonus_info
+    if general_max >= value >= general_min:
+        return 'GENERAL'
+    elif premium_max >= value >= premium_min:
+        return 'GENERAL_PREMIUM'
+    elif gold_max >= value >= gold_min:
+        return 'GENERAL_GOLD'
+    else: 
+        return
+
 def check_datetime(string):
     result = re.findall(r'\d{2}.\d{2}.\d{4} \d{2}:\d{2}', string)
     return result

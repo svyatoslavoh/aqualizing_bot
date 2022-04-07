@@ -32,7 +32,11 @@ def get_points(item, network_id):
 
 def get_terminals(item, point_id):
     cursor_oracle = create_session_oracle(item)
-    terminals = cursor_oracle.execute(f"""SELECT terminal_id, CODE ||' ( '|| to_char(LAST_PING, 'dd.mm.yyyy') ||' )' code FROM terminals rp where retail_point_id={point_id} and is_delete=0 and is_locked=0""")
+    terminals = cursor_oracle.execute(f"""SELECT TERMINAL_ID, CODE ||' ( '|| to_char(LAST_PING, 'dd.mm.yyyy') ||' )' AS code FROM ( 
+        SELECT TERMINAL_ID, code, LAST_PING
+        ,ROW_NUMBER() OVER (PARTITION BY TYPE ORDER BY LAST_PING DESC) rowes
+        FROM terminals rp where retail_point_id={point_id} and is_delete=0 and is_locked=0
+        ) WHERE rowes<3""")
     
     return terminals.fetchall()
 
@@ -49,6 +53,11 @@ def get_card(item, cli_id):
     
     return card.fetchone()    
 
+def get_card_info(item, cli_id):
+    cursor_oracle = create_session_oracle(item)
+    card = cursor_oracle.execute(f"""SELECT CARD_ID, card_num, card_type FROM cards c WHERE c.CLI_ID = {cli_id} AND c.IS_LOCKED = 0 AND c.IS_DELETE = 0""")
+    
+    return card.fetchone()    
 
 def get_persent(item, card_id, point_id, network_id):
     cursor_oracle = create_session_oracle(item)
@@ -59,9 +68,53 @@ def get_persent(item, card_id, point_id, network_id):
         JOIN (SELECT DECODE(c.card_type ,'GENERAL', 17,'GENERAL_PREMIUM', 18, 'GENERAL_GOLD', 19) PARAMETER_ID 
                 from cards c WHERE card_id = {card_id}) c ON c.PARAMETER_ID=bruv.PARAMETER_ID 
         LEFT JOIN CARD_HISTORIES ch ON ch.CARD_ID = {card_id} AND ch.NETWORK_ID = {network_id}
-        WHERE bru.APP_CODES_REGEX != 'lyvkit'""")
+        WHERE bru.APP_CODES_REGEX IS null OR bru.APP_CODES_REGEX != 'lyvkit'"""  )
     
     return persent.fetchone()
+
+
+def get_percent_network(item, card_id, network_id):
+    cursor_oracle = create_session_oracle(item)
+    persent = cursor_oracle.execute(f"""SELECT DISTINCT nvl(ch.CURRENT_BONUS, bruv.VALUE) FROM 
+		RETAIL_POINTS rp  
+        JOIN RETAIL_POINT_RULE_UNITS_RELS rpr ON rp.RETAIL_POINT_ID =rpr.RETAIL_POINT_ID
+        JOIN BONUS_RULE_UNITS bru ON rpr.UNIT_ID = bru.unit_id
+        JOIN BONUS_RULE_UNIT_VALUES bruv ON bruv.UNIT_ID =bru.UNIT_ID
+        JOIN (SELECT DECODE(c.card_type ,'GENERAL', 17,'GENERAL_PREMIUM', 18, 'GENERAL_GOLD', 19) PARAMETER_ID 
+                from CARDS c WHERE CARD_ID = {card_id}) c ON c.PARAMETER_ID=bruv.PARAMETER_ID 
+        LEFT JOIN CARD_HISTORIES ch ON ch.CARD_ID = {card_id} AND (ch.app_code IS NULL or ch.app_code != 'lyvkit') AND ch.NETWORK_ID = {network_id}
+        WHERE (bru.APP_CODES_REGEX IS null OR bru.APP_CODES_REGEX != 'lyvkit')
+        AND rpr.IS_DELETE = 0 AND bru.IS_DELETE = 0 AND rp.IS_DELETE = 0 AND bru.END_DATE > CURRENT_DATE 
+        AND rp.NETWORK_ID = {network_id}"""  )
+    
+    return persent.fetchone()
+
+
+def get_bonus_info(item, network_id):
+    cursor_oracle = create_session_oracle(item)
+    bonus = cursor_oracle.execute(f"""SELECT * FROM
+        (
+        SELECT DISTINCT parameter_id, TO_NUMBER(value) value FROM 
+                RETAIL_POINTS rp  
+                JOIN RETAIL_POINT_RULE_UNITS_RELS rpr ON rp.RETAIL_POINT_ID =rpr.RETAIL_POINT_ID 
+                JOIN BONUS_RULE_UNITS bru ON rpr.UNIT_ID = bru.unit_id 
+                JOIN BONUS_RULE_UNIT_VALUES bruv ON bruv.UNIT_ID =bru.UNIT_ID
+                WHERE bruv.PARAMETER_ID IN (17, 19, 18, 1, 20, 4)
+                AND rpr.IS_DELETE = 0 AND bru.IS_DELETE = 0 AND rp.IS_DELETE = 0 AND bru.END_DATE > CURRENT_DATE 
+                AND  bru.TEMPLATE_ID = 1 AND rp.NETWORK_ID = {network_id}
+                AND (bru.APP_CODES_REGEX IS NULL OR bru.APP_CODES_REGEX != 'lyvkit')
+                ORDER BY 1 asc 
+        )
+        PIVOT
+        (
+        max(value)
+        FOR parameter_id IN (1,4,17,18,19,20)
+        )
+        ORDER BY 1"""  )
+    
+    return bonus.fetchone()
+
+
 
 def get_org_fee(item, card_id, point_id):
     cursor_oracle = create_session_oracle(item)
@@ -159,7 +212,7 @@ def update_account(cursor_oracle, bonus_sum, org_fee, credit, cli_id):
 
 def get_operation(item, request_id):
     cursor_oracle = create_session_oracle(item)
-    result = cursor_oracle.execute(f"""select 'Гостю ' ||fio|| ' с номером телефона: '|| PHONE_MOBILE|| ' было начислено: '|| bonus_sum ||', за чек на сумму: '|| bill_sum|| ' от '|| TO_CHAR(request_date, 'dd.mm.yyyy') ||',' || RETAIL_POINT_TITLE ||'/rn Статус операции:' || REQUEST_STATE
+    result = cursor_oracle.execute(f"""select 'Гостю ' ||fio|| ' с номером телефона: '|| PHONE_MOBILE|| ' было начислено: '|| bonus_sum ||', за чек на сумму: '|| bill_sum|| ' от '|| TO_CHAR(request_date, 'dd.mm.yyyy') ||',' || RETAIL_POINT_TITLE ||', rrn:'|| ext_request_id ||' Статус операции:' || REQUEST_STATE
             from PAYMENT_OPERATIONS po WHERE REQUEST_ID ='{request_id}'""")
 
     return result.fetchone()
@@ -203,3 +256,68 @@ def main_aqualizing(user_data):
             connection.rollback()
             exit(1)
     
+
+def set_bonuses(user_data):
+    conn = user_data['project']
+    with cx_Oracle.connect(conn['user'], conn['password'], conn['connectString']) as connection:
+        try:
+            card_id = user_data['card_id']
+            new_bonus_type = user_data['new_bonus_type']
+            new_bonus_percent = user_data['new_cli_percent']
+            network_id = user_data['network_id']
+            cursor = connection.cursor()
+            logger.info(f"Starting change percents: {card_id}, {new_bonus_type}, {new_bonus_percent}, {network_id}")
+
+            histores_id = get_card_histories(cursor, card_id, network_id)
+            logger.info(f"history_id: {histores_id}")
+
+            if not histores_id:
+                set_history(cursor, card_id, network_id, new_bonus_percent)
+            
+            else:
+                history_id, = histores_id
+                set_bonus_type(cursor, card_id, new_bonus_type)
+                set_bonus_percent(cursor, history_id, new_bonus_percent)
+            
+            logger.info("commiting")
+            connection.commit()
+        except Exception as e:
+            print(e)
+            logger.error(e)
+            connection.rollback()
+            exit(1)
+            
+            
+            
+def set_bonus_type(cursor_oracle, card_id, new_bonus_type):
+    logger.info(f"updating card type")
+    cursor_oracle.execute(f"""update cards set card_type = '{new_bonus_type}' WHERE card_id = {card_id}""")
+
+    return
+
+
+def set_bonus_percent(cursor_oracle, history_id, new_bonus_percent):
+    logger.info(f"updating card_histories")
+    cursor_oracle.execute(f"""update card_histories set current_bonus = {new_bonus_percent} WHERE history_id = {history_id}""")
+    
+    return
+
+def get_card_histories(cursor_oracle, card_id, network_id):
+    history_id = cursor_oracle.execute(f"""SELECT history_id FROM CARD_HISTORIES ch WHERE card_id = {card_id} and network_id={network_id} and ( app_code is null or app_code != 'lyvkit')""")
+    return history_id.fetchone()
+    
+    
+def set_history(cursor_oracle, card_id, network_id, current_bonus):
+    logger.info(f"inserting card_histories")
+    cursor_oracle.execute(f"""
+    INSERT INTO CARD_HISTORIES VALUES (CARD_HISTORIES$SEQ.nextval, {card_id}, {network_id}, {current_bonus}, 0, 0, 0, CURRENT_DATE, CURRENT_DATE, 0, 0, (
+        SELECT DISTINCT app_codes_regex FROM 
+			RETAIL_POINTS rp  
+	        JOIN RETAIL_POINT_RULE_UNITS_RELS rpr ON rp.RETAIL_POINT_ID =rpr.RETAIL_POINT_ID
+	        JOIN BONUS_RULE_UNITS bru ON rpr.UNIT_ID = bru.unit_id AND bru.TEMPLATE_ID = 1
+	        WHERE (bru.APP_CODES_REGEX IS null OR bru.APP_CODES_REGEX != 'lyvkit')
+	        AND rpr.IS_DELETE = 0 AND bru.IS_DELETE = 0 AND rp.IS_DELETE = 0 AND bru.END_DATE > CURRENT_DATE 
+	        AND rp.NETWORK_ID = 1
+        ))""")
+    
+    return

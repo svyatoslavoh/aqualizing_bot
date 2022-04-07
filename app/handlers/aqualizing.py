@@ -12,10 +12,6 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
 )
 
-chose = ["Да", "/cancel"]
-available_drinks_sizes = ["250мл", "0.5л", "1л"]
-
-
 class DataEqu(StatesGroup):
     credles = State()
     project = State()
@@ -134,7 +130,7 @@ async def data_chosen(message: types.Message, state: FSMContext):
 
     await state.update_data(terminal_id=terminals[message.text])
 
-    await message.answer("Введите дату и время корректировки в формате 24.02.1920 10:00:", reply_markup=types.ReplyKeyboardRemove() )
+    await message.answer("Введите дату и время корректировки в формате 24.02.2022 10:00:", reply_markup=types.ReplyKeyboardRemove() )
     await DataEqu.request_date.set()
 
 
@@ -244,7 +240,7 @@ async def check_bill(message: types.Message, state: FSMContext):
     cli_persent = user_data['cli_persent']
     
     fee, =  dbworker.get_org_fee(user_data['project'], card_id, point_id)
-    bonus_sum = round((bill_summ - credit_sum) / 100 * cli_persent)
+    bonus_sum = round((bill_summ - credit_sum) / 100 * cli_persent, 2)
     org_fee = round((bill_summ - credit_sum) / 100 * fee, 2)
     
     await state.update_data(org_fee=org_fee)

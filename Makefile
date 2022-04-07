@@ -21,4 +21,4 @@ make lint:
 	poetry run flake8 happy_days
 
 init-bot:
-	~/.local/bin/poetry run init-bot
+	~/.local/bin/poetry run python bot.py

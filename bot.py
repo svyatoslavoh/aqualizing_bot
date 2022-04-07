@@ -7,6 +7,7 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 
 from app.config_reader import load_config
 from app.handlers.aqualizing import register_handlers_aqualizing
+from app.handlers.bonus_up import register_handlers_bonus_up
 from app.handlers.common import register_handlers_common
 
 logger = logging.getLogger(__name__)
@@ -16,6 +17,7 @@ async def set_commands(bot: Bot):
     commands = [
         BotCommand(command="/one", description="Единичные корректировки"),
         BotCommand(command="/many", description="Массовые корректировки"),
+        BotCommand(command="/bonus_up", description="Изменение ставки бонусирования"),
         BotCommand(command="/cancel", description="Отменить")
     ]
     await bot.set_my_commands(commands)
@@ -38,15 +40,15 @@ async def main():
     bot = Bot(token=config.tg_bot.token)
     dp = Dispatcher(bot, storage=MemoryStorage())
 
-    # Регистрация хэндлеров
+    # registr handlers
     register_handlers_common(dp, config.tg_bot.admin_id)
     register_handlers_aqualizing(dp)
-    # register_handlers_food(dp)
+    register_handlers_bonus_up(dp)
 
-    # Установка команд бота
+    # set bot commands
     await set_commands(bot)
 
-    # Запуск поллинга
+    # start pull]'[p]
     # await dp.skip_updates()  # пропуск накопившихся апдейтов (необязательно)
     await dp.start_polling()
 

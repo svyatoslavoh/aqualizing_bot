@@ -4,7 +4,9 @@ from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from .. import dbworker, controller
 import logging
+from app.config_reader import load_config
 
+config = load_config("config/bot.ini")
 logger = logging.getLogger(__name__)
 
 logging.basicConfig(
@@ -28,6 +30,11 @@ class DataBonus(StatesGroup):
     new_bonus_type = State()
     
 async def bonus_up_start(message: types.Message, state: FSMContext):
+    logger.info("Authentifications...")
+    if message.from_user.id not in [int(i) for i in config.tg_bot.admin_id]:
+        await message.answer("Permission denied", reply_markup=types.ReplyKeyboardRemove())
+        return
+
     logger.info("Getting credles")
     credles = controller.get_credentials()
     await state.update_data(credles=credles)

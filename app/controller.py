@@ -21,11 +21,12 @@ def processOp(bps, request_id):
 
 
 def get_credentials():
-    bad_prod = ('test122', 'dev122','vashbonus', 'dev248', 'ppk', 'newtest', 'lyvkitchen', 'st-web', 'st-mob')
+    bad_prod = ('test122', 'dev122','vashbonus', 'dev248', 'ppk', 'lyvkitchen', 'st-web', 'st-mob')
     try:
-        tmp_credles = requests.get(f"{config.tg_bot.conf_url}/api/configs/database", timeout=5)
+        tmp_credles = requests.get(f"{config.tg_bot.conf_url}/api/configs/database", timeout=8)
     except Timeout:
         logger.error(f"{config.tg_bot.conf_url}/api/configs/database is tooo long waiting for")
+        return
     else:
         dirty_credles = json.loads(tmp_credles.content)
     LIST_PROJECT = {}
@@ -35,17 +36,46 @@ def get_credentials():
     return LIST_PROJECT
 
 
-def get_bps(name):
+def get_all_bps():
+    bad_prod = ('test122', 'dev122', 'vashbonus', 'dev248', 'ppk', 'st-web', 'st-mob')
     try:
-        tmp_credles = requests.get(f"{config.tg_bot.conf_url}/liquiprocessing", timeout=5)
+        tmp_credles = requests.get(f"{config.tg_bot.conf_url}/liquiprocessing", timeout=8)
     except Timeout:
         logger.error(f"{config.tg_bot.conf_url}/liquiprocessing is tooo long waiting for")
+        return
+    else:
+        dirty_credles = json.loads(tmp_credles.content)
+    LIST_PROJECT = {}
+    for item in (x for x in dirty_credles if x.get('dataBase') not in bad_prod):
+        LIST_PROJECT[item.get('dataBase')] = item
+        
+    return LIST_PROJECT
+
+
+def get_bps(name):
+    try:
+        tmp_credles = requests.get(f"{config.tg_bot.conf_url}/liquiprocessing", timeout=8)
+    except Timeout:
+        logger.error(f"{config.tg_bot.conf_url}/liquiprocessing is tooo long waiting for")
+        return
     else:
         dirty_credles = json.loads(tmp_credles.content)
     for item in (x for x in dirty_credles if x.get('dataBase') == name):
         return item['processingInt']
 
 
+def get_bps_token(name):
+    try:
+        configs = requests.get(f"{config.tg_bot.conf_url}/api/configs/bps/{name}", timeout=8)
+    except Timeout:
+        logger.error(f"{config.tg_bot.conf_url}/configs is tooo long waiting for")
+        return
+    else:
+        dirty_configs = json.loads(configs.content)
+    
+    return dirty_configs['bpsToken']
+    
+    
 def get_nt(items):
     """Get hd."""
     netw={}
@@ -88,10 +118,25 @@ def check_process(string):
         return str(result['BpsResponse'])
 
 
-def get_employee_code():
-    LOWERCASE_CHARACTERS = string.ascii_lowercase + string.ascii_uppercase
-    temp_pwd = random.sample(LOWERCASE_CHARACTERS, 6)
-    random.shuffle(temp_pwd)
-    str = "".join(temp_pwd)
+def get_refresh(bps_token, processingExt):
+    url= f'{processingExt}login'
+    url_refresh = f'{processingExt}refreshActions'
+    user_agent_val = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.142 Safari/537.36'
+
+    session = requests.Session()
+    r = session.get(url, headers = {
+        'User-Agent': user_agent_val
+    })
+
+    session.headers.update({'Referer':url})
+    session.headers.update({'User-Agent':user_agent_val})
     
-    return 'EQUALIZING_' + str
+    post_request = session.post(url, {
+        'username': 'admin',
+        'password': bps_token
+    })
+    logger.info(f"login_response: {post_request}")
+    response = session.get(url_refresh)
+    logger.info(f"refresh_response: {response.content}")
+
+    return response.content

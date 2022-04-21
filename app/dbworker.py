@@ -1,4 +1,5 @@
-import cx_Oracle, requests, logging
+import cx_Oracle, logging, uuid
+
 from sqlalchemy import create_engine
 
 
@@ -122,10 +123,15 @@ def get_org_fee(item, card_id, point_id):
     fee = cursor_oracle.execute(f"""SELECT TO_NUMBER(br.AMOUNT) FROM BONUS_RULE_UNITS bru
         JOIN RETAIL_POINT_RULE_UNITS_RELS rp ON rp.UNIT_ID = bru.UNIT_ID 
         JOIN BONUS_RULE_UNIT_REWARDS br ON br.UNIT_ID  = bru.UNIT_ID 
-        WHERE bru.TEMPLATE_ID = 22 AND rp.RETAIL_POINT_ID = {point_id} AND APP_CODES_REGEX !='lyvkit'
+        WHERE bru.TEMPLATE_ID = 22 AND rp.RETAIL_POINT_ID = {point_id} AND ( APP_CODES_REGEX is null or APP_CODES_REGEX !='lyvkit')
         AND br.CARD_TYPE = (SELECT card_type FROM cards WHERE card_id = {card_id})""")
     
-    return fee.fetchone()
+    org_fee = fee.fetchone()
+    
+    if not org_fee:
+        return 0,
+    
+    return org_fee
 
 
 def get_balance(item, cli_id):
@@ -135,31 +141,26 @@ def get_balance(item, cli_id):
     return balance.fetchone()
 
 
-def set_request(cursor_oracle, request_date, card_id, terminal_id, employee_code):
-    cursor_oracle.execute(f"""insert into requests (request_id, request_date, request_state, request_type, card_id, terminal_id, request_state_code, employee_code, ins_date, upd_date)
-                select LOWER(REGEXP_REPLACE(SYS_GUID(), '(.{8})(.{4})(.{4})(.{4})(.{12})', '\\1-\\2-\\3-\\4-\\5')) MSSQL_GUID, to_date('{request_date}','dd.mm.yyyy hh24:mi'), 'READY', 'PAYMENT_AND_CONFIRM',
-                {card_id}, {terminal_id}, 'OK', '{employee_code}', current_date, current_date from dual""")
+def set_request(cursor_oracle, request_id, request_date, card_id, terminal_id):
+    cursor_oracle.execute(f"""insert into requests(request_id, request_date, request_state, request_type, card_id, terminal_id, request_state_code, employee_code, ins_date, upd_date, ext_request_id)
+                select '{request_id}', to_date('{request_date}','dd.mm.yyyy hh24:mi'), 'READY', 'PAYMENT_AND_CONFIRM',
+                {card_id}, {terminal_id}, 'OK', 'EQUALIZING', systimestamp, systimestamp, '{request_id}' from dual""")
 
     return
 
-def get_requst_id(cursor_oracle, employee_code, card_id):
-    request = cursor_oracle.execute(f"""SELECT REQUEST_ID FROM REQUESTS r WHERE r.CARD_ID = {card_id} AND employee_code='{employee_code}'""")
-
-    return request.fetchone()
-
-def set_bills(cursor_oracle, employee_code, request_date, bill_sum, request_id):
+def set_bills(cursor_oracle, request_date, bill_sum, request_id):
     logger.info(f"setting bills")
     cursor_oracle.execute(f"""insert into bills(bill_id, bill_code, bill_date, bill_length, bill_sum, is_spend_bonus, request_id, ins_date, upd_date, is_processed, state)
-                select bills$seq.nextval, '{employee_code}', to_date('{request_date}', 'dd.mm.yyyy hh24:mi'), 1, {bill_sum},
+                select bills$seq.nextval, 'EQUALIZING', to_date('{request_date}', 'dd.mm.yyyy hh24:mi'), 1, {bill_sum},
                 (select(case when 0 > 0 then 1 else 0 end) from dual), '{request_id}', current_date,
                 current_date, 0, 'PROCESSED' from dual""")
 
     return
 
-def set_goods(cursor_oracle, request_id, bill_sum, employee_code):
+def set_goods(cursor_oracle, request_id, bill_sum):
     logger.info(f"setting goods")
     cursor_oracle.execute(f"""insert into goods(good_id, bill_id, good_code, amount, good_title, is_discount_available, order_num, position_price, ins_date, upd_date, good_type, state)
-                select goods$seq.nextval, (SELECT BILL_ID FROM BILLS b WHERE b.REQUEST_ID = '{request_id}'), '{employee_code}', 1, '{employee_code}', 0, 1, {bill_sum}, current_date,
+                select goods$seq.nextval, (SELECT BILL_ID FROM BILLS b WHERE b.REQUEST_ID = '{request_id}'), 'EQUALIZING', 1, 'EQUALIZING', 0, 1, {bill_sum}, current_date,
                 current_date, 'GOOD', 'CONFIRMED' from dual""")
 
     return
@@ -196,12 +197,6 @@ def set_transactions_credit(cursor_oracle, card_id, cli_id, request_id, retail_p
     return
 
 
-def set_upd_requests(cursor_oracle, request_id):
-    logger.info(f"updating request: {request_id}")
-    cursor_oracle.execute(f"update REQUESTS set EXT_REQUEST_ID = '{request_id}' where REQUEST_ID = '{request_id}'")
-
-    return
-
 def update_account(cursor_oracle, bonus_sum, org_fee, credit, cli_id):
     cursor_oracle.execute(f"""update accounts set amount=amount + {bonus_sum} - {org_fee}, balance=balance - {credit},
                 locked_amount = locked_amount + {bonus_sum} - {org_fee} + {credit}, upd_date=current_date where account_type = 'GLOBAL'
@@ -230,18 +225,15 @@ def main_aqualizing(user_data):
             org_fee = user_data['org_fee']
             bonus_sum = user_data['bonus_sum']
             request_date = user_data['request_date']
-            employee_code = user_data['employee_code']
             cursor = connection.cursor()
-            
+            request_id = str(uuid.uuid4())
             #!!!!!!!!!!!
 
             # --Записываем запрос
-            logger.info(f"Starting request: {cursor}, {request_date}, {card_id}, {terminal_id}, {employee_code}")
-            set_request(cursor, request_date, card_id, terminal_id, employee_code)
-            request_id, = get_requst_id(cursor, employee_code, card_id)
-            set_upd_requests(cursor, request_id)
-            set_bills(cursor, employee_code, request_date, bill_sum, request_id)
-            set_goods(cursor, request_id, bill_sum, employee_code)
+            logger.info(f"Starting request: {cursor}, {request_date}, {card_id}, {terminal_id}")
+            set_request(cursor, request_id, request_date, card_id, terminal_id)
+            set_bills(cursor, request_date, bill_sum, request_id)
+            set_goods(cursor, request_id, bill_sum)
             set_transactions_debit(cursor, bonus_sum, cli_id, card_id, request_id, point_id)
             set_transactions_fee(cursor, org_fee, card_id, cli_id, request_id, point_id)
             set_transactions_credit(cursor, card_id, cli_id, request_id, point_id, credit_sum)
@@ -254,7 +246,6 @@ def main_aqualizing(user_data):
             print(e)
             logger.error(e)
             connection.rollback()
-            exit(1)
     
 
 def set_bonuses(user_data):
@@ -285,7 +276,6 @@ def set_bonuses(user_data):
             print(e)
             logger.error(e)
             connection.rollback()
-            exit(1)
             
             
             
@@ -317,7 +307,49 @@ def set_history(cursor_oracle, card_id, network_id, current_bonus):
 	        JOIN BONUS_RULE_UNITS bru ON rpr.UNIT_ID = bru.unit_id AND bru.TEMPLATE_ID = 1
 	        WHERE (bru.APP_CODES_REGEX IS null OR bru.APP_CODES_REGEX != 'lyvkit')
 	        AND rpr.IS_DELETE = 0 AND bru.IS_DELETE = 0 AND rp.IS_DELETE = 0 AND bru.END_DATE > CURRENT_DATE 
-	        AND rp.NETWORK_ID = 1
+	        AND rp.NETWORK_ID = {network_id}
         ))""")
     
     return
+
+def get_buh_row(cursor_oracle, request_id):
+    logger.info(f"Getting buh_row:")
+    result = cursor_oracle.execute(f"""SELECT epr.request_id, brd.EXT_REQUEST_ID, brd.REQUEST_DATE, brd.REQUEST_STATE,  brd.fio,  brd.BILL_SUM, brd.BONUS_SUM, brd.BONUS_CREDIT_SUM, 
+        brd.EXTRA_AMOUNT_WITHDRAW, brd.EXTRA_AMOUNT_WITHDRAW_FEE, 
+        brd.RETAIL_NETWORK_TITLE, brd.RETAIL_POINT_TITLE, brd.LEGACY_TITLE, bc.TITLE 
+        FROM EXTRA_PAYMENT_REQUESTS epr 
+        LEFT JOIN PAYMENT_OPERATIONS brd ON epr.request_id=brd.REQUEST_ID 
+        LEFT JOIN RETAIL_NETWORKS rn ON rn.RETAIL_NETWORK_ID = brd.RETAIL_NETWORK_ID 
+        LEFT JOIN BONUS_CLUBS bc ON bc.CLUB_ID = rn.CLUB_ID 
+        WHERE epr.REQUEST_ID  = '{request_id}'""")
+    
+    return result.fetchall()
+
+
+def get_buch_request(cursor_oracle, request_id):
+    logger.info(f"Getting buch_request:")
+    result = cursor_oracle.execute(f"""SELECT request_id FROM EXTRA_PAYMENT_REQUESTS epr WHERE epr.request_id = '{request_id}'""")
+    
+    return result.fetchone()
+
+
+def finder_main(LIST_PROJECT, requests):
+    result = []
+    for key in LIST_PROJECT:
+        project = LIST_PROJECT[key]
+        logger.info(f"Starting search: {key}")
+        with cx_Oracle.connect(project['user'], project['password'], project['connectString']) as connection:
+            cursor = connection.cursor()
+            rows = []
+            for request in requests:
+                logger.info(f"Request_id: {request}")
+                buh_row = get_buh_row(cursor, request)
+                if buh_row:
+                    rows.append(buh_row[0])
+            
+            if len(rows) > 0:
+                for i in rows:
+                    result.append(i)
+    
+                
+    return result

@@ -8,7 +8,9 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from app.config_reader import load_config
 from app.handlers.aqualizing import register_handlers_aqualizing
 from app.handlers.bonus_up import register_handlers_bonus_up
+from app.handlers.refresh import register_handlers_refresh
 from app.handlers.common import register_handlers_common
+from app.handlers.finder import register_handlers_finder
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +18,10 @@ logger = logging.getLogger(__name__)
 async def set_commands(bot: Bot):
     commands = [
         BotCommand(command="/one", description="Единичные корректировки"),
-        BotCommand(command="/many", description="Массовые корректировки"),
+        # BotCommand(command="/many", description="Массовые корректировки"),
         BotCommand(command="/bonus_up", description="Изменение ставки бонусирования"),
+        BotCommand(command="/refresh", description="Рефреш"),
+        BotCommand(command="/finder", description="Поиск банк.операций"),
         BotCommand(command="/cancel", description="Отменить")
     ]
     await bot.set_my_commands(commands)
@@ -44,6 +48,8 @@ async def main():
     register_handlers_common(dp, config.tg_bot.admin_id)
     register_handlers_aqualizing(dp)
     register_handlers_bonus_up(dp)
+    register_handlers_refresh(dp)
+    register_handlers_finder(dp)
 
     # set bot commands
     await set_commands(bot)

@@ -1,9 +1,8 @@
 from aiogram import Dispatcher, types
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
-from icecream import ic
 from .. import dbworker, controller
-import logging
+import logging, uuid
 from app.config_reader import load_config
 
 config = load_config("config/bot.ini")
@@ -36,6 +35,7 @@ class DataEqu(StatesGroup):
     credit_sum = State()
     answer = State()
     org_fee = State()
+    request_id = State()
     bonus_sum = State()
 
 
@@ -85,6 +85,7 @@ async def point_chosen(message: types.Message, state: FSMContext):
         await message.answer("Пожалуйста, ВЫБИРИТЕ сеть:")
         return
     await state.update_data(network_id=network[message.text])
+    logger.info(f"network: {message.text}")
 
     user_data = await state.get_data()
     dyrty_points = dbworker.get_points(user_data['project'], user_data['network_id'])
@@ -109,6 +110,7 @@ async def terminal_chosen(message: types.Message, state: FSMContext):
 
     await state.update_data(point_id=points[message.text])
     await state.update_data(point_title=message.text)
+    logger.info(f"network: {message.text}")
     
     user_data = await state.get_data()
     dyrty_terminals = dbworker.get_terminals(user_data['project'], user_data['point_id'])
@@ -135,7 +137,8 @@ async def data_chosen(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(terminal_id=terminals[message.text])
-
+    logger.info(f"terminal: {message.text}")
+    
     await message.answer("Введите дату и время корректировки в формате 24.02.2022 10:00:", reply_markup=types.ReplyKeyboardRemove() )
     await DataEqu.request_date.set()
 
@@ -147,7 +150,8 @@ async def phone_chosen(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(request_date=datetime[0])
-
+    logger.info(f"request_date: {datetime}")
+    
     await message.answer("Введите телефон гостя:", reply_markup=types.ReplyKeyboardRemove())
     await DataEqu.phone_mobile.set()
     
@@ -161,12 +165,13 @@ async def bill_chosen(message: types.Message, state: FSMContext):
     if len(phone_mobile) == 0:
         await message.answer("Не корректный номер телефона.")
         return
-
+    logger.info(f"phone_mobile: {phone_mobile}")
     user_data = await state.get_data()
     
     dyrty_cli = dbworker.get_cli_by_phone(user_data['project'], phone_mobile[0])
     cli = controller.get_nt(dyrty_cli)
-
+    logger.info(f"cli: {cli}")
+    
     if len(cli) > 1:
         await message.answer("С таким телефона найдено больше одного гостя. Повторите попытку.")
         return
@@ -194,7 +199,7 @@ async def bill_chosen(message: types.Message, state: FSMContext):
     await state.update_data(cli_persent=cli_persent)
     await state.update_data(balance=balance)
     user_data = await state.get_data()
-    ic(user_data)
+    
     await message.answer("Введите сумму счета:", reply_markup=types.ReplyKeyboardRemove())
     await DataEqu.bill_summ.set()
 
@@ -207,8 +212,6 @@ async def credit_chosen(message: types.Message, state: FSMContext):
         return
     
     logger.info(f"Bill sum is: {bill_summ}")
-    
-
     
     await state.update_data(bill_summ=bill_summ)
     await message.answer("Введите сумму траты:", reply_markup=types.ReplyKeyboardRemove())
@@ -247,11 +250,13 @@ async def check_bill(message: types.Message, state: FSMContext):
     fee, =  dbworker.get_org_fee(user_data['project'], card_id, point_id)
     bonus_sum = round((bill_summ - credit_sum) / 100 * cli_persent, 2)
     org_fee = round((bill_summ - credit_sum) / 100 * fee, 2)
-    
+    request_id = str(uuid.uuid4())
+    logger.info(f"request_id: {request_id}")
     await state.update_data(org_fee=org_fee)
+    await state.update_data(request_id=request_id)
     await state.update_data(bonus_sum=bonus_sum)
     
-    text = f'Гостю {cli_name}( {phone_mobile} ) в {point_title} будет начислено: {bonus_sum} , списано: {credit_sum}, комиссия орг:{org_fee}'
+    text = f'Гостю {cli_name}( {phone_mobile} ) в {point_title} будет начислено: {bonus_sum} , списано: {credit_sum}, комиссия орг:{org_fee}, request_id: {request_id}'
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
     keyboard.add('Да', '/cancel')
     

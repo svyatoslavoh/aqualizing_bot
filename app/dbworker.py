@@ -1,4 +1,4 @@
-import cx_Oracle, logging, uuid
+import cx_Oracle, logging
 
 from sqlalchemy import create_engine
 
@@ -233,7 +233,7 @@ def main_aqualizing(user_data):
             bonus_sum = user_data['bonus_sum']
             request_date = user_data['request_date']
             cursor = connection.cursor()
-            request_id = str(uuid.uuid4())
+            request_id = user_data['request_id']
             #!!!!!!!!!!!
 
             # --Записываем запрос
@@ -247,7 +247,7 @@ def main_aqualizing(user_data):
             update_account(cursor, bonus_sum, org_fee, credit_sum, cli_id)
             logger.info("commiting")
             connection.commit()
-
+            logger.info(f"request_id: {request_id}")
             return request_id
         except Exception as e:
             print(e)

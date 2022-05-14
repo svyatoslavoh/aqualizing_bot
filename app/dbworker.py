@@ -208,8 +208,15 @@ def update_account(cursor_oracle, bonus_sum, org_fee, credit, cli_id):
 def get_operation(item, request_id):
     cursor_oracle = create_session_oracle(item)
     result = cursor_oracle.execute(f"""select 'Гостю ' ||fio|| ' с номером телефона: '|| PHONE_MOBILE|| ' было начислено: '|| bonus_sum ||', за чек на сумму: '|| bill_sum|| ' от '|| TO_CHAR(request_date, 'dd.mm.yyyy') ||',' || RETAIL_POINT_TITLE ||', rrn:'|| ext_request_id ||' Статус операции:' || REQUEST_STATE
-            from PAYMENT_OPERATIONS po WHERE REQUEST_ID ='{request_id}'""")
+                from PAYMENT_OPERATIONS po WHERE REQUEST_ID ='{request_id}'""")
 
+    return result.fetchone()
+
+def check_request_id(item, request_id):
+    cursor_oracle = create_session_oracle(item)
+    result = cursor_oracle.execute(f"""select request_id ||', '|| request_date ||', '|| 'Сумма счета: ' || bill_sum || ', ' || 'Накоплено: ' || bonus_sum  || ', ' || 'Потрачено: ' || bonus_credit_sum || ', ' || 'Статус: ' || request_state
+                from PAYMENT_OPERATIONS po WHERE REQUEST_ID ='{request_id}'""")
+    
     return result.fetchone()
 
 def main_aqualizing(user_data):

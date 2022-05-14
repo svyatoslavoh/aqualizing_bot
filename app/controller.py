@@ -19,11 +19,20 @@ def processOp(bps, request_id):
     
     return response.content
 
+def cancelOp(bps, request_id):
+    logger.info(f"to processing operation by: {request_id}")
+    string = bps + 'bpsApi/do.CANCEL_REQUEST/param={ "REQUEST_ID" : "' + request_id + '" }'
+    logger.info(f"{string}")
+    response = requests.post(string)
+    logger.info(f"{response.content}, {response.status_code}")
+    
+    return response.content
+
 
 def get_credentials():
     bad_prod = ('test122', 'dev122','vashbonus', 'dev248', 'ppk', 'lyvkitchen', 'st-web', 'st-mob')
     try:
-        tmp_credles = requests.get(f"{config.tg_bot.conf_url}/api/configs/database", timeout=8)
+        tmp_credles = requests.get(f"{config.tg_bot.conf_url}/api/configs/database", timeout=15)
     except Timeout:
         logger.error(f"{config.tg_bot.conf_url}/api/configs/database is tooo long waiting for")
         return
@@ -39,7 +48,7 @@ def get_credentials():
 def get_all_bps():
     bad_prod = ('test122', 'dev122', 'vashbonus', 'dev248', 'ppk', 'st-web', 'st-mob')
     try:
-        tmp_credles = requests.get(f"{config.tg_bot.conf_url}/liquiprocessing", timeout=8)
+        tmp_credles = requests.get(f"{config.tg_bot.conf_url}/liquiprocessing", timeout=15)
     except Timeout:
         logger.error(f"{config.tg_bot.conf_url}/liquiprocessing is tooo long waiting for")
         return
@@ -54,7 +63,7 @@ def get_all_bps():
 
 def get_bps(name):
     try:
-        tmp_credles = requests.get(f"{config.tg_bot.conf_url}/liquiprocessing", timeout=8)
+        tmp_credles = requests.get(f"{config.tg_bot.conf_url}/liquiprocessing", timeout=15)
     except Timeout:
         logger.error(f"{config.tg_bot.conf_url}/liquiprocessing is tooo long waiting for")
         return
@@ -66,7 +75,7 @@ def get_bps(name):
 
 def get_bps_token(name):
     try:
-        configs = requests.get(f"{config.tg_bot.conf_url}/api/configs/bps/{name}", timeout=8)
+        configs = requests.get(f"{config.tg_bot.conf_url}/api/configs/bps/{name}", timeout=15)
     except Timeout:
         logger.error(f"{config.tg_bot.conf_url}/configs is tooo long waiting for")
         return

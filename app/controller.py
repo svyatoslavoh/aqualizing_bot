@@ -1,4 +1,4 @@
-import requests, json, logging, re, random, string
+import requests, json, logging, re, os
 from requests.exceptions import Timeout
 
 from app.config_reader import load_config
@@ -149,3 +149,8 @@ def get_refresh(bps_token, processingExt):
     logger.info(f"refresh_response: {response.content}")
 
     return response.content
+
+def rm_docs():
+    files = os.listdir(r'./documents/')
+    for file in files:
+        os.remove(f'./documents/{file}')

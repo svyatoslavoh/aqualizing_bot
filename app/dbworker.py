@@ -47,6 +47,17 @@ def get_cli_by_phone(item, phone_mobile):
     
     return cli.fetchall()
 
+def get_point_by_term(item, code):
+    cursor_oracle = create_session_oracle(item)
+    point = cursor_oracle.execute(f"""SELECT retail_point_id FROM terminals  WHERE code = '{code}' AND IS_LOCKED = 0 AND IS_DELETE = 0""")
+    
+    return point.fetchone() 
+
+def get_network_by_point(item, point_id):
+    cursor_oracle = create_session_oracle(item)
+    network = cursor_oracle.execute(f"""SELECT NETWORK_ID FROM RETAIL_POINTS rp WHERE RETAIL_POINT_ID  = {point_id} AND IS_DELETE = 0""")
+ 
+    return network.fetchone() 
 
 def get_card(item, cli_id):
     cursor_oracle = create_session_oracle(item)
@@ -136,9 +147,30 @@ def get_org_fee(item, card_id, point_id):
 
 def get_balance(item, cli_id):
     cursor_oracle = create_session_oracle(item)
-    balance = cursor_oracle.execute(f"""SELECT TO_NUMBER(balance) FROM accounts WHERE cli_id = {cli_id} and account_type='GLOBAL'""")
+    balance = cursor_oracle.execute(f"""SELECT TO_NUMBER(balance) FROM accounts WHERE cli_id = {cli_id} and is_delete = 0 and account_type = 'GLOBAL'""")
     
     return balance.fetchone()
+
+
+def get_card_by_card(item, card_num):
+    cursor_oracle = create_session_oracle(item)
+    card = cursor_oracle.execute(f"""SELECT card_id, cli_id FROM cards WHERE card_num = '{card_num}' and is_delete = 0 and is_locked = 0""")
+
+    return card.fetchone()
+
+def get_card_by_cli(item, card_num):
+    cursor_oracle = create_session_oracle(item)
+    card = cursor_oracle.execute(f"""SELECT card_id, cli_id FROM cards WHERE card_num = '{card_num}' and is_delete = 0 and is_locked = 0""")
+    
+    return card.fetchone()
+
+
+def check_terminal(item, code):
+    cursor_oracle = create_session_oracle(item)
+    terminal = cursor_oracle.execute(f"""select is_locked, is_delete, terminal_id from terminals where code = '{code}'""")
+    
+    return terminal.fetchone()
+
 
 
 def set_request(cursor_oracle, request_id, request_date, card_id, terminal_id):
@@ -211,6 +243,15 @@ def get_operation(item, request_id):
                 from PAYMENT_OPERATIONS po WHERE REQUEST_ID ='{request_id}'""")
 
     return result.fetchone()
+
+
+def get_request_state(item, request_id):
+    cursor_oracle = create_session_oracle(item)
+    result = cursor_oracle.execute(f"""select REQUEST_STATE
+                from PAYMENT_OPERATIONS po WHERE REQUEST_ID ='{request_id}'""")
+
+    return result.fetchone()
+
 
 def check_request_id(item, request_id):
     cursor_oracle = create_session_oracle(item)

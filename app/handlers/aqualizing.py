@@ -2,7 +2,7 @@ from aiogram import Dispatcher, types
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from .. import dbworker, controller
-import logging, uuid
+import logging, uuid, datetime
 from app.config_reader import load_config
 
 config = load_config("config/bot.ini")
@@ -138,8 +138,10 @@ async def data_chosen(message: types.Message, state: FSMContext):
 
     await state.update_data(terminal_id=terminals[message.text])
     logger.info(f"terminal: {message.text}")
+    now = datetime.datetime.now()
+    data_example = now.strftime( '%d.%m.%Y %H:%M')
     
-    await message.answer("Введите дату и время корректировки в формате 24.02.2022 10:00:", reply_markup=types.ReplyKeyboardRemove() )
+    await message.answer(f"Введите дату и время корректировки в формате {data_example}", reply_markup=types.ReplyKeyboardRemove() )
     await DataEqu.request_date.set()
 
 
@@ -234,7 +236,7 @@ async def check_bill(message: types.Message, state: FSMContext):
         return
     
     logger.info(f"Credit sum is: {credit_sum}")
-    await state.update_data(credit_sum=credit_sum)
+    await state.update_data(credit_sum = credit_sum)
     
     user_data = await state.get_data()
 

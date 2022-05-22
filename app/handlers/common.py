@@ -6,7 +6,7 @@ from aiogram.dispatcher.filters import Text, IDFilter
 async def cmd_start(message: types.Message, state: FSMContext):
     await state.finish()
     await message.answer(
-        f"Единичная корректировка (/one), Изменение процентной ставки (/bonus_up).",
+        f"bot (:^)=",
         reply_markup=types.ReplyKeyboardRemove()
     )
 

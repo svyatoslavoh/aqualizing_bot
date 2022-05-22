@@ -46,6 +46,7 @@ async def get_file(message: types.Message, state: FSMContext):
         file = os.listdir(r'./documents/')
         request = pd.read_csv('./documents/' + file[0])
         request.head()
+        controller.rm_docs()
         result = dbworker.finder_main(user_data["credles"], request.request_id.unique())
         # for request in request.request_id:
         #     logger.info(f"Request_id: {request}")
@@ -63,10 +64,6 @@ async def get_file(message: types.Message, state: FSMContext):
         doc = open(r'./create_docs/result.xlsx', 'rb')
         
         await message.answer_document(doc)
-        
-        files = os.listdir(r'./documents/')
-        for file in files:
-            os.remove(f'./documents/{file}')
     
     except Exception as e:
         logger.error(e)

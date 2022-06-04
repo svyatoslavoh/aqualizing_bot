@@ -10,18 +10,12 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
 )
 
-def processOp(bps, request_id):
-    logger.info(f"to processing operation by: {request_id}")
-    string = bps + 'bpsApi/do.PROCESS_REQUEST/param={ "REQUEST_ID" : "' + request_id + '" }'
-    logger.info(f"{string}")
-    response = requests.post(string)
-    logger.info(f"{response.content}, {response.status_code}")
-    
-    return response.content
-
-def cancelOp(bps, request_id):
-    logger.info(f"to processing operation by: {request_id}")
-    string = bps + 'bpsApi/do.CANCEL_REQUEST/param={ "REQUEST_ID" : "' + request_id + '" }'
+def processOp(bps, request_id, operation):
+    logger.info(f"to {operation} operation by: {request_id}")
+    if bps == 'http://192.168.4.231:50180/mono007/':
+        string = 'http://192.168.4.231:50183/mono006/bpsApi/do.' + operation + '/param={ "REQUEST_ID" : "' + request_id + '" }'
+    else:
+        string = bps + 'bpsApi/do.' + operation + '/param={ "REQUEST_ID" : "' + request_id + '" }'
     logger.info(f"{string}")
     response = requests.post(string)
     logger.info(f"{response.content}, {response.status_code}")

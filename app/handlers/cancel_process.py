@@ -63,7 +63,7 @@ async def proces_cancel(message: types.Message, state: FSMContext):
     await state.update_data(processing_int=processing_int)
     logger.info(f"processing_int: {processing_int}")
     
-    await message.answer("Введите request_id:", reply_markup=types.ReplyKeyboardRemove())
+    await message.answer("Введите RRN:", reply_markup=types.ReplyKeyboardRemove())
 
     await DataProcesCancel.request_id.set()
     
@@ -73,14 +73,15 @@ async def get_request_id(message: types.Message, state: FSMContext):
     request = dbworker.check_request_id(user_data['project'], message.text)
 
     if request is None:
-        await message.answer("Request_id не найден")
+        await message.answer("RRN не найден")
+        logger.info(f"RRN не найден: {message.answer}")
         return
     else:
-        request_id = request[0]
-        logger.info(f"request_id: {request_id}")
-        await message.reply(f"Данные по операции: {request_id}")
+        request_id, request_info = request
+        logger.info(f"request_id: {request_info}")
+        await message.reply(f"Данные по операции: {request_info}")
 
-    await state.update_data(request_id=message.text)
+    await state.update_data(request_id=request_id)
     
     text = "Выберите действие:"
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -100,17 +101,17 @@ async def proces_cancel_chosen(message: types.Message, state: FSMContext):
     answer = user_data['answer']
     logger.info(f"start main proces_cancel...")
 
-    if answer == 'Подтвердить':
-        request_id = user_data['request_id']
-        processing_int = user_data['processing_int']
-        answer_bps = controller.processOp(processing_int, request_id)
-        logger.info(f"answer_bps: {answer_bps}")
+    
+    request_id = user_data['request_id']
+    processing_int = user_data['processing_int']
 
+    if answer == 'Подтвердить':
+        operation = 'PROCESS_REQUEST'
     elif answer == 'Отменить':
-        request_id = user_data['request_id']
-        processing_int = user_data['processing_int']
-        answer_bps = controller.cancelOp(processing_int, request_id)
-        logger.info(f"answer_bps: {answer_bps}")
+        operation = 'CANCEL_REQUEST'
+
+    answer_bps = controller.processOp(processing_int, request_id, operation)
+    logger.info(f"answer_bps: {answer_bps}")
 
     await message.answer(answer_bps, reply_markup=types.ReplyKeyboardRemove())
     await state.finish()

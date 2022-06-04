@@ -182,7 +182,7 @@ async def process(message: types.Message, state: FSMContext):
             logger.info(f"start main_aqualizing... with: {user_data}")
             request_id = dbworker.main_aqualizing(user_data)
             bps = controller.get_bps(user_data['project']['name'])
-            answer_bps = controller.processOp(bps, request_id)
+            answer_bps = controller.processOp(bps, request_id, 'PROCESS_REQUEST')
             final_result, = dbworker.get_operation(user_data['project'], request_id)
             status = controller.check_process(answer_bps)
 

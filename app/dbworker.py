@@ -173,9 +173,10 @@ def check_terminal(item, code):
 
 
 
-def set_request(cursor_oracle, request_id, request_date, card_id, terminal_id):
+def set_request(cursor_oracle, request_id, request_date, card_id, terminal_id, type, status):
+    logger.info(f"setting request")
     cursor_oracle.execute(f"""insert into requests(request_id, request_date, request_state, request_type, card_id, terminal_id, request_state_code, employee_code, ins_date, upd_date, ext_request_id)
-                select '{request_id}', to_date('{request_date}','dd.mm.yyyy hh24:mi'), 'READY', 'PAYMENT_AND_CONFIRM',
+                select '{request_id}', to_date('{request_date}','dd.mm.yyyy hh24:mi'), '{status}', '{type}',
                 {card_id}, {terminal_id}, 'OK', 'EQUALIZING', systimestamp, systimestamp, '{request_id}' from dual""")
 
     return
@@ -197,10 +198,10 @@ def set_goods(cursor_oracle, request_id, bill_sum):
 
     return
 
-def set_transactions_debit(cursor_oracle, bonus_sum, cli_id, card_id, request_id, retail_point_id):
+def set_transactions_debit(cursor_oracle, bonus_sum, cli_id, card_id, request_id, retail_point_id, status):
     logger.info(f"setting transactions_debit with: {request_id}")
     cursor_oracle.execute(f"""insert into transactions(transaction_id, operation_type, transaction_state, amount, account_id, good_id, card_id, bill_id, ins_date, upd_date, transaction_kind, request_id, retail_point_id)
-                select transactions$seq.nextval, 'DEBIT', 'READY', {bonus_sum}, (select account_id from accounts where account_type='GLOBAL' and cli_id={cli_id}),
+                select transactions$seq.nextval, 'DEBIT', '{status}', {bonus_sum}, (select account_id from accounts where account_type='GLOBAL' and cli_id={cli_id}),
                 (SELECT GOOD_ID FROM GOODS WHERE BILL_ID=(SELECT BILL_ID FROM BILLS WHERE REQUEST_ID = '{request_id}')),
                 {card_id}, (SELECT BILL_ID FROM BILLS b WHERE b.REQUEST_ID = '{request_id}'),
                 current_date, current_date, 'PAYMENT_DEBIT', '{request_id}',
@@ -208,9 +209,9 @@ def set_transactions_debit(cursor_oracle, bonus_sum, cli_id, card_id, request_id
 
     return
 
-def set_transactions_fee(cursor_oracle, org_fee, card_id, cli_id, request_id, retail_point_id):
+def set_transactions_fee(cursor_oracle, org_fee, card_id, cli_id, request_id, retail_point_id, status):
     cursor_oracle.execute(f"""insert into transactions(transaction_id, operation_type, transaction_state, amount, account_id, good_id, card_id, bill_id, ins_date, upd_date, transaction_kind, request_id, retail_point_id)
-                select transactions$seq.nextval, 'CREDIT', 'READY', {org_fee}, (select account_id from accounts where account_type='GLOBAL' and cli_id={cli_id}),
+                select transactions$seq.nextval, 'CREDIT', '{status}', {org_fee}, (select account_id from accounts where account_type='GLOBAL' and cli_id={cli_id}),
                 (SELECT GOOD_ID FROM GOODS WHERE BILL_ID=(SELECT BILL_ID FROM BILLS WHERE REQUEST_ID = '{request_id}')),
                 {card_id}, (SELECT BILL_ID FROM BILLS b WHERE b.REQUEST_ID = '{request_id}'),
                 current_date, current_date, 'ORGANIZER_FEE', '{request_id}',
@@ -218,9 +219,9 @@ def set_transactions_fee(cursor_oracle, org_fee, card_id, cli_id, request_id, re
 
     return
 
-def set_transactions_credit(cursor_oracle, card_id, cli_id, request_id, retail_point_id, credit):
+def set_transactions_credit(cursor_oracle, card_id, cli_id, request_id, retail_point_id, credit, status):
     cursor_oracle.execute(f"""insert into transactions(transaction_id, operation_type, transaction_state, amount, account_id, good_id, card_id, bill_id, ins_date, upd_date, transaction_kind, request_id, retail_point_id)
-                select transactions$seq.nextval, 'CREDIT', 'READY', {credit}, (select account_id from accounts where account_type='GLOBAL' and cli_id={cli_id}),
+                select transactions$seq.nextval, 'CREDIT', '{status}', {credit}, (select account_id from accounts where account_type='GLOBAL' and cli_id={cli_id}),
                 (SELECT GOOD_ID FROM GOODS WHERE BILL_ID=(SELECT BILL_ID FROM BILLS WHERE REQUEST_ID = '{request_id}')),
                 {card_id}, (SELECT BILL_ID FROM BILLS b WHERE b.REQUEST_ID = '{request_id}'),
                 current_date, current_date, 'PAYMENT_CREDIT', '{request_id}',
@@ -230,6 +231,7 @@ def set_transactions_credit(cursor_oracle, card_id, cli_id, request_id, retail_p
 
 
 def update_account(cursor_oracle, bonus_sum, org_fee, credit, cli_id):
+    logger.info(f"updating account")
     cursor_oracle.execute(f"""update accounts set amount=amount + {bonus_sum} - {org_fee}, balance=balance - {credit},
                 locked_amount = locked_amount + {bonus_sum} - {org_fee} + {credit}, upd_date=current_date where account_type = 'GLOBAL'
                 and cli_id = {cli_id}""")
@@ -237,7 +239,15 @@ def update_account(cursor_oracle, bonus_sum, org_fee, credit, cli_id):
     return
 
 
+def update_account_balance(cursor_oracle, bonus_sum, org_fee, credit, cli_id):
+    logger.info(f"updating account")
+    cursor_oracle.execute(f"""update accounts set amount=amount + {bonus_sum} - {org_fee}, balance=balance - {credit} + {bonus_sum} - {org_fee},
+                upd_date=current_date where account_type = 'GLOBAL'
+                and cli_id = {cli_id}""")
+
+
 def get_operation(item, request_id):
+    logger.info(f"getting operation")
     cursor_oracle = create_session_oracle(item)
     result = cursor_oracle.execute(f"""select 'Гостю ' ||fio|| ' с номером телефона: '|| PHONE_MOBILE|| ' было начислено: '|| bonus_sum ||', за чек на сумму: '|| bill_sum|| ' от '|| TO_CHAR(request_date, 'dd.mm.yyyy') ||',' || RETAIL_POINT_TITLE ||', rrn:'|| ext_request_id ||' Статус операции:' || REQUEST_STATE
                 from PAYMENT_OPERATIONS po WHERE REQUEST_ID ='{request_id}'""")
@@ -253,10 +263,10 @@ def get_request_state(item, request_id):
     return result.fetchone()
 
 
-def check_request_id(item, request_id):
+def check_request_id(item, ext_request_id):
     cursor_oracle = create_session_oracle(item)
-    result = cursor_oracle.execute(f"""select request_id ||', '|| request_date ||', '|| 'Сумма счета: ' || bill_sum || ', ' || 'Накоплено: ' || bonus_sum  || ', ' || 'Потрачено: ' || bonus_credit_sum || ', ' || 'Статус: ' || request_state
-                from PAYMENT_OPERATIONS po WHERE REQUEST_ID ='{request_id}'""")
+    result = cursor_oracle.execute(f"""select request_id,  ext_request_id ||', '|| request_date ||', '|| 'Сумма счета: ' || bill_sum || ', ' || 'Накоплено: ' || bonus_sum  || ', ' || 'Потрачено: ' || bonus_credit_sum || ', ' || 'Статус: ' || request_state
+                from PAYMENT_OPERATIONS po WHERE ext_REQUEST_ID ='{ext_request_id}'""")
     
     return result.fetchone()
 
@@ -279,12 +289,12 @@ def main_aqualizing(user_data):
 
             # --Записываем запрос
             logger.info(f"Starting request: {cursor}, {request_date}, {card_id}, {terminal_id}")
-            set_request(cursor, request_id, request_date, card_id, terminal_id)
+            set_request(cursor, request_id, request_date, card_id, terminal_id, 'PAYMENT_AND_CONFIRM', 'READY')
             set_bills(cursor, request_date, bill_sum, request_id)
             set_goods(cursor, request_id, bill_sum)
-            set_transactions_debit(cursor, bonus_sum, cli_id, card_id, request_id, point_id)
-            set_transactions_fee(cursor, org_fee, card_id, cli_id, request_id, point_id)
-            set_transactions_credit(cursor, card_id, cli_id, request_id, point_id, credit_sum)
+            set_transactions_debit(cursor, bonus_sum, cli_id, card_id, request_id, point_id, 'READY')
+            set_transactions_fee(cursor, org_fee, card_id, cli_id, request_id, point_id, 'READY')
+            set_transactions_credit(cursor, card_id, cli_id, request_id, point_id, credit_sum, 'READY')
             update_account(cursor, bonus_sum, org_fee, credit_sum, cli_id)
             logger.info("commiting")
             connection.commit()
@@ -295,6 +305,34 @@ def main_aqualizing(user_data):
             logger.error(e)
             connection.rollback()
     
+
+def main_deposit(user_data):
+    conn = user_data['project']
+    with cx_Oracle.connect(conn['user'], conn['password'], conn['connectString']) as connection:
+        try:
+            point_id = user_data['point_id']
+            cli_id = user_data['cli_id']
+            terminal_id = user_data['terminal_id']
+            bill_sum = user_data['bill_summ']
+            card_id = user_data['card_id']
+            request_date = user_data['request_date']
+            cursor = connection.cursor()
+            request_id = user_data['request_id']
+            #!!!!!!!!!!!
+
+            # --Записываем запрос
+            logger.info(f"Starting request: {cursor}, {request_date}, {card_id}, {terminal_id}")
+            set_request(cursor, request_id, request_date, card_id, terminal_id, 'DEPOSIT', 'PROCESSED')
+            set_transactions_debit(cursor, bill_sum, cli_id, card_id, request_id, point_id, 'PROCESSED')
+            update_account_balance(cursor, bill_sum, 0, 0, cli_id)
+            logger.info("commiting")
+            connection.commit()
+            logger.info(f"request_id: {request_id}")
+            return request_id
+        except Exception as e:
+            logger.error(e)
+            connection.rollback()
+            return
 
 def set_bonuses(user_data):
     conn = user_data['project']

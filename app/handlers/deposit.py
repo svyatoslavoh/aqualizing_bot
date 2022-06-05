@@ -15,24 +15,24 @@ logging.basicConfig(
 
 class DataDeposit(StatesGroup):
     credles = State()
-    project = State()
+    project_dep = State()
     networks = State()
-    network_id = State()
+    network_id_dep = State()
     points = State()
-    point_id = State()
-    point_title = State()
+    point_id_dep = State()
+    point_title_dep = State()
     terminals = State()
-    terminal_id = State()
+    terminal_id_dep = State()
     phone_mobile = State()
     request_date = State()
-    cli_id = State()
-    cli_name = State()
-    card_num = State()
-    balance = State()
-    card_id = State()
+    cli_id_dep = State()
+    cli_name_dep = State()
+    card_num_dep = State()
+    balance_dep = State()
+    card_id_deb = State()
     bill_summ = State()
     answer = State()
-    request_id = State()
+    request_id_dep = State()
     bonus_sum = State()
 
 
@@ -51,7 +51,7 @@ async def deposit_start(message: types.Message, state: FSMContext):
 
     await message.answer("Выберите проект:", reply_markup=keyboard)
 
-    await DataDeposit.project.set()
+    await DataDeposit.project_dep.set()
 
 
 async def network_chosen(message: types.Message, state: FSMContext):
@@ -61,9 +61,9 @@ async def network_chosen(message: types.Message, state: FSMContext):
         await message.answer("Пожалуйста, ВЫБЕРИТЕ проект:")
         return
 
-    await state.update_data(project=credles[message.text])
+    await state.update_data(project_dep=credles[message.text])
     user_data = await state.get_data()
-    dyrty_networks = dbworker.get_networks(user_data['project'])
+    dyrty_networks = dbworker.get_networks(user_data['project_dep'])
     network = controller.get_nt(dyrty_networks)
     
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -72,7 +72,7 @@ async def network_chosen(message: types.Message, state: FSMContext):
     await state.update_data(networks=network)
     
     await message.answer("Выберите сеть:", reply_markup=keyboard)
-    await DataDeposit.network_id.set()
+    await DataDeposit.network_id_dep.set()
     
 async def point_chosen(message: types.Message, state: FSMContext):
     user_data = await state.get_data()
@@ -81,11 +81,11 @@ async def point_chosen(message: types.Message, state: FSMContext):
     if message.text not in network.keys():
         await message.answer("Пожалуйста, ВЫБИРИТЕ сеть:")
         return
-    await state.update_data(network_id=network[message.text])
+    await state.update_data(network_id_dep=network[message.text])
     logger.info(f"network: {message.text}")
 
     user_data = await state.get_data()
-    dyrty_points = dbworker.get_points(user_data['project'], user_data['network_id'])
+    dyrty_points = dbworker.get_points(user_data['project_dep'], user_data['network_id_dep'])
     points = controller.get_nt(dyrty_points)
     
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -94,7 +94,7 @@ async def point_chosen(message: types.Message, state: FSMContext):
     await state.update_data(points=points)
     
     await message.answer("Выберите точку:", reply_markup=keyboard)
-    await DataDeposit.point_id.set()
+    await DataDeposit.point_id_dep.set()
 
 
 async def terminal_chosen(message: types.Message, state: FSMContext):
@@ -105,12 +105,12 @@ async def terminal_chosen(message: types.Message, state: FSMContext):
         await message.answer("Пожалуйста, ВЫБИРИТЕ точку:")
         return
 
-    await state.update_data(point_id=points[message.text])
-    await state.update_data(point_title=message.text)
+    await state.update_data(point_id_dep=points[message.text])
+    await state.update_data(point_title_dep=message.text)
     logger.info(f"network: {message.text}")
     
     user_data = await state.get_data()
-    dyrty_terminals = dbworker.get_terminals(user_data['project'], user_data['point_id'])
+    dyrty_terminals = dbworker.get_terminals(user_data['project_dep'], user_data['point_id_dep'])
     terminals = controller.get_nt(dyrty_terminals)
     
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -121,7 +121,7 @@ async def terminal_chosen(message: types.Message, state: FSMContext):
     await state.update_data(terminals=terminals)
     
     await message.answer("Выберите терминал:", reply_markup=keyboard)
-    await DataDeposit.terminal_id.set()
+    await DataDeposit.terminal_id_dep.set()
     user_data = await state.get_data()
 
 
@@ -133,7 +133,7 @@ async def data_chosen(message: types.Message, state: FSMContext):
         await message.answer("Пожалуйста, ВЫБИРИТЕ терминал:")
         return
 
-    await state.update_data(terminal_id=terminals[message.text])
+    await state.update_data(terminal_id_dep=terminals[message.text])
     logger.info(f"terminal: {message.text}")
     now = datetime.datetime.now()
     data_example = now.strftime( '%d.%m.%Y %H:%M')
@@ -167,7 +167,7 @@ async def bill_chosen(message: types.Message, state: FSMContext):
     logger.info(f"phone_mobile: {phone_mobile}")
     user_data = await state.get_data()
     
-    dyrty_cli = dbworker.get_cli_by_phone(user_data['project'], phone_mobile[0])
+    dyrty_cli = dbworker.get_cli_by_phone(user_data['project_dep'], phone_mobile[0])
     cli = controller.get_nt(dyrty_cli)
     logger.info(f"cli: {cli}")
     
@@ -179,22 +179,21 @@ async def bill_chosen(message: types.Message, state: FSMContext):
         await message.answer("Гость с таким телефоном не найден. Повторите попытку.")
         return
 
-    for i,v in cli.items():
-        cli_name, cli_id = (i,v)
+    cli_name, cli_id = controller.get_cli_info(cli) 
     
 
-    card = dbworker.get_card(user_data['project'], cli_id)
+    card = dbworker.get_card(user_data['project_dep'], cli_id)
     card_id, card_num = card
-    balance, = dbworker.get_balance(user_data['project'], cli_id)
+    balance, = dbworker.get_balance(user_data['project_dep'], cli_id)
         
     await message.reply(f"{cli_name}, {card_num}, balance :{balance}")
     
     await state.update_data(phone_mobile=phone_mobile[0])
-    await state.update_data(cli_name=cli_name)
-    await state.update_data(cli_id=cli_id)
-    await state.update_data(card_id=card_id)
-    await state.update_data(card_num=card_num)
-    await state.update_data(balance=balance)
+    await state.update_data(cli_name_dep=cli_name)
+    await state.update_data(cli_id_dep=cli_id)
+    await state.update_data(card_id_dep=card_id)
+    await state.update_data(card_num_dep=card_num)
+    await state.update_data(balance_dep=balance)
     user_data = await state.get_data()
     
     await message.answer("Введите сумму депозита:", reply_markup=types.ReplyKeyboardRemove())
@@ -214,17 +213,17 @@ async def check_bill(message: types.Message, state: FSMContext):
     
     user_data = await state.get_data()
 
-    card_id = user_data['card_id']
+    card_id = user_data['card_id_dep']
     phone_mobile = user_data['phone_mobile']
-    point_id = user_data['point_id']
-    point_title = user_data['point_title']
+    point_id = user_data['point_id_dep']
+    point_title = user_data['point_title_dep']
     bill_summ = user_data['bill_summ']
-    cli_name = user_data['cli_name']
+    cli_name = user_data['cli_name_dep']
     
-    fee, =  dbworker.get_org_fee(user_data['project'], card_id, point_id)
+    fee, =  dbworker.get_org_fee(user_data['project_dep'], card_id, point_id)
     request_id = str(uuid.uuid4())
     logger.info(f"request_id: {request_id}")
-    await state.update_data(request_id=request_id)
+    await state.update_data(request_id_dep=request_id)
     
     text = f'Гостю {cli_name}( {phone_mobile} ) в {point_title} будет начислено: {bill_summ}, request_id: {request_id}'
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -245,7 +244,7 @@ async def aqualizer_chosen(message: types.Message, state: FSMContext):
     
     logger.info(f"start main_deposit...")
     request_id = dbworker.main_deposit(user_data)
-    balance, = dbworker.get_balance(user_data['project'], user_data['cli_id'])
+    balance, = dbworker.get_balance(user_data['project_dep'], user_data['cli_id_dep'])
 
     await message.answer(f'rrn: {request_id},балланс: {balance}', reply_markup=types.ReplyKeyboardRemove())
     await state.finish()
@@ -253,10 +252,10 @@ async def aqualizer_chosen(message: types.Message, state: FSMContext):
 
 def register_handlers_deposit(dp: Dispatcher):
     dp.register_message_handler(deposit_start, commands="deposit", state="*")
-    dp.register_message_handler(network_chosen, state=DataDeposit.project)
-    dp.register_message_handler(point_chosen, state=DataDeposit.network_id)
-    dp.register_message_handler(terminal_chosen, state=DataDeposit.point_id)
-    dp.register_message_handler(data_chosen, state=DataDeposit.terminal_id)
+    dp.register_message_handler(network_chosen, state=DataDeposit.project_dep)
+    dp.register_message_handler(point_chosen, state=DataDeposit.network_id_dep)
+    dp.register_message_handler(terminal_chosen, state=DataDeposit.point_id_dep)
+    dp.register_message_handler(data_chosen, state=DataDeposit.terminal_id_dep)
     dp.register_message_handler(phone_chosen, state=DataDeposit.request_date)
     dp.register_message_handler(bill_chosen, state=DataDeposit.phone_mobile)
     dp.register_message_handler(check_bill, state=DataDeposit.bill_summ)

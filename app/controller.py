@@ -120,6 +120,11 @@ def check_process(string):
     if result['BpsResponse']['state'] == 'ERROR':
         return str(result['BpsResponse'])
 
+def get_cli_info(cli):
+    for i,v in cli.items():
+        cli_name, cli_id = (i,v)
+    
+    return cli_name, cli_id
 
 def get_refresh(bps_token, processingExt):
     url= f'{processingExt}login'

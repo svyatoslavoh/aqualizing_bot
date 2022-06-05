@@ -8,6 +8,7 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from app.config_reader import load_config
 from app.handlers.aqualizing import register_handlers_aqualizing
 from app.handlers.deposit import register_handlers_deposit
+from app.handlers.move_che_mo import register_handlers_move
 from app.handlers.aqualizing_multi import register_handlers_multi
 from app.handlers.bonus_up import register_handlers_bonus_up
 from app.handlers.refresh import register_handlers_refresh
@@ -23,6 +24,7 @@ async def set_commands(bot: Bot):
         BotCommand(command="/one", description="Единичные корректировки"),
         BotCommand(command="/many", description="Массовые корректировки"),
         BotCommand(command="/deposit", description="Депозит"),
+        BotCommand(command="/move", description="Перенос баланса Mo->Che"),
         BotCommand(command="/bonus_up", description="Изменение ставки бонусирования"),
         BotCommand(command="/refresh", description="Рефреш"),
         BotCommand(command="/cancel_process", description="Отмена/Подтв. операций"),
@@ -58,6 +60,7 @@ async def main():
     register_handlers_refresh(dp)
     register_handlers_cancel_process(dp)
     register_handlers_finder(dp)
+    register_handlers_move(dp)
 
     # set bot commands
     await set_commands(bot)

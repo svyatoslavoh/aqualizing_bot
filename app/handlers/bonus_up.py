@@ -104,9 +104,7 @@ async def change_chosen(message: types.Message, state: FSMContext):
         await message.answer("Гость с таким телефоном не найден. Повторите попытку.")
         return
 
-    for i,v in cli.items():
-        cli_name, cli_id = (i,v)
-    
+    cli_name, cli_id = controller.get_cli_info(cli)
 
     card = dbworker.get_card_info(user_data['project'], cli_id)
     card_id, card_num, card_type = card

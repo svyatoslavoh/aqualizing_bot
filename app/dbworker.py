@@ -249,7 +249,7 @@ def update_account_balance(cursor_oracle, bonus_sum, org_fee, credit, cli_id):
 def get_operation(item, request_id):
     logger.info(f"getting operation")
     cursor_oracle = create_session_oracle(item)
-    result = cursor_oracle.execute(f"""select 'Гостю ' ||fio|| ' с номером телефона: '|| PHONE_MOBILE|| ' было начислено: '|| bonus_sum ||', за чек на сумму: '|| bill_sum|| ' от '|| TO_CHAR(request_date, 'dd.mm.yyyy') ||',' || RETAIL_POINT_TITLE ||', rrn:'|| ext_request_id ||' Статус операции:' || REQUEST_STATE
+    result = cursor_oracle.execute(f"""select 'Гостю ' ||fio|| ' с номером телефона: '|| PHONE_MOBILE|| ' было начислено: '|| bonus_sum ||', списано: '|| bonus_credit_sum ||', за чек на сумму: '|| bill_sum|| ' от '|| TO_CHAR(request_date, 'dd.mm.yyyy') ||',' || RETAIL_POINT_TITLE ||', rrn:'|| ext_request_id ||' Статус операции:' || REQUEST_STATE
                 from PAYMENT_OPERATIONS po WHERE REQUEST_ID ='{request_id}'""")
 
     return result.fetchone()
@@ -307,17 +307,17 @@ def main_aqualizing(user_data):
     
 
 def main_deposit(user_data):
-    conn = user_data['project']
+    conn = user_data['project_dep']
     with cx_Oracle.connect(conn['user'], conn['password'], conn['connectString']) as connection:
         try:
-            point_id = user_data['point_id']
-            cli_id = user_data['cli_id']
-            terminal_id = user_data['terminal_id']
+            point_id = user_data['point_id_dep']
+            cli_id = user_data['cli_id_dep']
+            terminal_id = user_data['terminal_id_dep']
             bill_sum = user_data['bill_summ']
-            card_id = user_data['card_id']
+            card_id = user_data['card_id_dep']
             request_date = user_data['request_date']
             cursor = connection.cursor()
-            request_id = user_data['request_id']
+            request_id = user_data['request_id_dep']
             #!!!!!!!!!!!
 
             # --Записываем запрос

@@ -17,10 +17,14 @@ def processOp(bps, request_id, operation):
     else:
         string = bps + 'bpsApi/do.' + operation + '/param={ "REQUEST_ID" : "' + request_id + '" }'
     logger.info(f"{string}")
-    response = requests.post(string)
-    logger.info(f"{response.content}, {response.status_code}")
-    
-    return response.content
+    try:
+        response = requests.post(string, timeout=15)
+    except Timeout:
+        logger.info(f'{string} IS TIMEOUT')
+        return f'{string} IS TIMEOUT'
+    else:
+        logger.info(f"{response.content}, {response.status_code}")
+        return response.content
 
 
 def get_credentials():
@@ -126,6 +130,7 @@ def get_cli_info(cli):
     
     return cli_name, cli_id
 
+
 def get_refresh(bps_token, processingExt):
     url= f'{processingExt}login'
     url_refresh = f'{processingExt}refreshActions'
@@ -151,5 +156,6 @@ def get_refresh(bps_token, processingExt):
 
 def rm_docs():
     files = os.listdir(r'./documents/')
+    logger.info(f"Removing files in documents.")
     for file in files:
         os.remove(f'./documents/{file}')

@@ -128,6 +128,8 @@ async def process(message: types.Message, state: FSMContext):
                     cli_name, cli_id = (i,v)
                     
                 card = dbworker.get_card(user_data['project'], cli_id)
+                if card is None:
+                    raise Exception("Карта заблокирована или удалена.")
                 card_id, card_num = card
                 
             bill_sum = cli.bill_sum

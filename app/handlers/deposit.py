@@ -180,9 +180,12 @@ async def bill_chosen(message: types.Message, state: FSMContext):
         return
 
     cli_name, cli_id = controller.get_cli_info(cli) 
-    
-
     card = dbworker.get_card(user_data['project_dep'], cli_id)
+    
+    if card is None:
+        await message.answer("карта заблокирована или удалена.")
+        return
+
     card_id, card_num = card
     balance, = dbworker.get_balance(user_data['project_dep'], cli_id)
         

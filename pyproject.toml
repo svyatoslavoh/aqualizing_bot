@@ -17,6 +17,8 @@ SQLAlchemy = "^1.4.32"
 aiogram-calendar = "^0.1.1"
 pandas = "^1.4.2"
 openpyxl = "^3.0.9"
+qrcode = "^7.3.1"
+image = "^1.5.33"
 
 [tool.poetry.dev-dependencies]
 

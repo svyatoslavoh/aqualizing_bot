@@ -152,6 +152,12 @@ def get_balance(item, cli_id):
     return balance.fetchone()
 
 
+def get_card_by_rrn(item, rrn):
+    cursor_oracle = create_session_oracle(item)
+    card_id = cursor_oracle.execute(f"""select card_num from cards where card_id = (SELECT card_id FROM requests WHERE ext_request_id = '{rrn}')""")
+    
+    return card_id.fetchone()
+
 def get_card_by_card(item, card_num):
     cursor_oracle = create_session_oracle(item)
     card = cursor_oracle.execute(f"""SELECT card_id, cli_id FROM cards WHERE card_num = '{card_num}' and is_delete = 0 and is_locked = 0""")

@@ -16,6 +16,7 @@ from app.handlers.cancel_process import register_handlers_cancel_process
 from app.handlers.common import register_handlers_common
 from app.handlers.finder import register_handlers_finder
 from app.handlers.qrcoder import register_handlers_qrcoder
+from app.handlers.report_cli import register_handlers_report_cli
 logger = logging.getLogger(__name__)
 
 
@@ -27,6 +28,7 @@ async def set_commands(bot: Bot):
         BotCommand(command="/move", description="Перенос баланса Mo->Che"),
         BotCommand(command="/bonus_up", description="Изменение ставки бонусирования"),
         BotCommand(command="/qrcoder", description="Get QR(card_num) by RRN"),
+        BotCommand(command="/report_cli", description="Выписка по операциям"),
         BotCommand(command="/refresh", description="Рефреш"),
         BotCommand(command="/cancel_process", description="Отмена/Подтв. операций"),
         BotCommand(command="/finder", description="Поиск банк.операций"),
@@ -63,7 +65,7 @@ async def main():
     register_handlers_finder(dp)
     register_handlers_move(dp)
     register_handlers_qrcoder(dp)
-    
+    register_handlers_report_cli(dp)
 
     # set bot commands
     await set_commands(bot)

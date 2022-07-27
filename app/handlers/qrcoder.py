@@ -15,6 +15,7 @@ logging.basicConfig(
 
 class DataQRcoder(StatesGroup):
     credles = State()
+    is_che = State()
     project = State()
     card_num = State()
     rrn = State()
@@ -22,16 +23,21 @@ class DataQRcoder(StatesGroup):
 
 async def deposit_start(message: types.Message, state: FSMContext):
     logger.info("Authentifications...")
-    if message.from_user.id not in [int(i) for i in config.tg_bot.admin_id]:
+    if message.from_user.id not in [int(i) for i in config.tg_bot.admin_id+config.tg_bot.che]:
         await message.answer("Permission denied", reply_markup=types.ReplyKeyboardRemove())
         return
 
+
     credles = controller.get_credentials()
     await state.update_data(credles=credles)
+
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    
     for name in credles:
         keyboard.add(name)
+
+    if message.from_user.id in [int(i) for i in config.tg_bot.che]:
+        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        keyboard.add('che')
 
     await message.answer("Выберите проект:", reply_markup=keyboard)
 

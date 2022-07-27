@@ -57,7 +57,7 @@ async def move_start(message: types.Message, state: FSMContext):
     credles = controller.get_credentials()
     await state.update_data(credles=credles)
     await state.update_data(project_dep=credles['che'])
-    await state.update_data(project=credles['chemo'])
+    await state.update_data(project=credles['mora'])
     await state.update_data(network_id=28206)
     await state.update_data(network_id_dep=28227)    
 

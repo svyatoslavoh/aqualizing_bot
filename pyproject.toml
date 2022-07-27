@@ -12,13 +12,14 @@ MarkupSafe = "2.0.1"
 cowsay = "^4.0"
 icecream = "^2.1.2"
 requests = "^2.27.1"
-cx-Oracle = "^8.3.0"
 SQLAlchemy = "^1.4.32"
 aiogram-calendar = "^0.1.1"
 pandas = "^1.4.2"
 openpyxl = "^3.0.9"
 qrcode = "^7.3.1"
 image = "^1.5.33"
+oracledb = "^1.0.1"
+cx-Oracle = "^8.3.0"
 
 [tool.poetry.dev-dependencies]
 

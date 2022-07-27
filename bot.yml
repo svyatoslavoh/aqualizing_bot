@@ -1,0 +1,13 @@
+version: '3.7'
+services:
+  bot:
+    image: 33398f5efca5
+    restart: unless-stopped
+    volumes:
+    - ./config:/app/bot/config
+    command: [sh, -c, "cd /app/bot && make first-install && make install && poetry run python bot.py"]
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "udp://192.168.4.39:12201"
+        tag: "dev"

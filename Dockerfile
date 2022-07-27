@@ -1,15 +1,22 @@
-FROM python:3.9
-ADD . /app/bot
+FROM python:3.10
 
-RUN cd /app/bot; make first-install;
 
-WORKDIR /usr/lib/oracle/21/
 USER root
+WORKDIR /opt/oracle
 
-RUN apt-key adv --recv-keys --keyserver keyserver.ubuntu.com 467B942D3A79BD29
-RUN apt-get update && apt-get install libaio1 && apt-get install wget -y && apt-get install alien -y
-RUN wget -qO- -O instantclient_21_4.rpm https://download.oracle.com/otn_software/linux/instantclient/214000/oracle-instantclient-basic-21.4.0.0.0-1.el8.x86_64.rpm &&  alien -i  instantclient_21_4.rpm 
-RUN sh -c "echo /usr/lib/oracle/21/client64/lib > /etc/ld.so.conf.d/oracle-instantclient.conf"
-RUN ldconfig
+RUN apt-get update && apt-get install wget unzip
 
+RUN wget https://download.oracle.com/otn_software/linux/instantclient/instantclient-basiclite-linuxx64.zip && \
+    unzip instantclient-basiclite-linuxx64.zip && \
+    rm -f instantclient-basiclite-linuxx64.zip && \
+    cd instantclient* && \
+    rm -f *jdbc* *occi* *mysql* *jar uidrvci genezi adrci && \
+    echo /opt/oracle/instantclient* > /etc/ld.so.conf.d/oracle-instantclient.conf && \
+    ldconfig
+RUN apt install libaio1
+
+ADD . /app/bot
 WORKDIR /app/bot
+
+RUN make first-install;
+

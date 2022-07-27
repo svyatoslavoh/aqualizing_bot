@@ -105,13 +105,15 @@ def check_summ(bill_summ):
     return float(new)
 
 def check_bonus(bonus_info, value):
-    general_max, premium_max, general_min, premium_min, gold_min, gold_max = bonus_info
+    general_max, premium_max, general_min, premium_min, gold_min, gold_max, social_min, social_max = bonus_info
     if general_max >= value >= general_min:
         return 'GENERAL'
     elif premium_max >= value >= premium_min:
         return 'GENERAL_PREMIUM'
     elif gold_max >= value >= gold_min:
         return 'GENERAL_GOLD'
+    elif social_max >= value >= social_min:
+        return 'SOCIAL'
     else: 
         return
 
@@ -159,3 +161,16 @@ def rm_docs():
     logger.info(f"Removing files in documents.")
     for file in files:
         os.remove(f'./documents/{file}')
+        
+def check_discount(network_id, project, config):
+    networks = config.tg_bot.discount_networks
+    projects = config.tg_bot.discount_projects
+    project = project['name']
+    logger.info(f"Networks: {networks}")
+    logger.info(f"Projects: {projects}")
+    
+    logger.info(f"network_id, project: {network_id}, {project}")
+    if int(network_id) in [int(i) for i in networks] and project in [str(i) for i in projects]:
+        return True
+    else:
+        return False

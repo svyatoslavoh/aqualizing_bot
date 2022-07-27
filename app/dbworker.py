@@ -1,4 +1,7 @@
-import cx_Oracle, logging
+import logging
+import oracledb, cx_Oracle
+
+oracledb.init_oracle_client()
 
 from sqlalchemy import create_engine
 
@@ -84,22 +87,43 @@ def get_persent(item, card_id, point_id, network_id):
     
     return persent.fetchone()
 
-
-def get_percent_network(item, card_id, network_id):
-    cursor_oracle = create_session_oracle(item)
-    persent = cursor_oracle.execute(f"""SELECT DISTINCT nvl(ch.CURRENT_BONUS, bruv.VALUE) FROM 
+def sql_get_percent(network_id, card_id):
+    return f"""SELECT DISTINCT nvl(ch.CURRENT_BONUS, bruv.VALUE) FROM 
 		RETAIL_POINTS rp  
         JOIN RETAIL_POINT_RULE_UNITS_RELS rpr ON rp.RETAIL_POINT_ID =rpr.RETAIL_POINT_ID
         JOIN BONUS_RULE_UNITS bru ON rpr.UNIT_ID = bru.unit_id
         JOIN BONUS_RULE_UNIT_VALUES bruv ON bruv.UNIT_ID =bru.UNIT_ID
-        JOIN (SELECT DECODE(c.card_type ,'GENERAL', 17,'GENERAL_PREMIUM', 18, 'GENERAL_GOLD', 19) PARAMETER_ID 
+        JOIN (SELECT DECODE(c.card_type ,'GENERAL', 17,'GENERAL_PREMIUM', 18, 'GENERAL_GOLD', 19, 'SOCIAL', 17401) PARAMETER_ID 
                 from CARDS c WHERE CARD_ID = {card_id}) c ON c.PARAMETER_ID=bruv.PARAMETER_ID 
         LEFT JOIN CARD_HISTORIES ch ON ch.CARD_ID = {card_id} AND (ch.app_code IS NULL or ch.app_code != 'lyvkit') AND ch.NETWORK_ID = {network_id}
         WHERE (bru.APP_CODES_REGEX IS null OR bru.APP_CODES_REGEX != 'lyvkit')
         AND rpr.IS_DELETE = 0 AND bru.IS_DELETE = 0 AND rp.IS_DELETE = 0 AND bru.END_DATE > CURRENT_DATE 
-        AND rp.NETWORK_ID = {network_id}"""  )
+        AND rp.NETWORK_ID = {network_id}"""
+
+
+def sql_get_percent_discount(network_id, card_id):
+    return f"""SELECT DISTINCT nvl(ch.CURRENT_BONUS, bruv.VALUE) FROM 
+		RETAIL_POINTS rp  
+        JOIN RETAIL_POINT_RULE_UNITS_RELS rpr ON rp.RETAIL_POINT_ID =rpr.RETAIL_POINT_ID
+        JOIN BONUS_RULE_UNITS bru ON rpr.UNIT_ID = bru.unit_id
+        JOIN BONUS_RULE_UNIT_VALUES bruv ON bruv.UNIT_ID =bru.UNIT_ID
+        JOIN (SELECT DECODE(c.card_type ,'GENERAL', 17,'GENERAL_PREMIUM', 18, 'GENERAL_GOLD', 19, 'SOCIAL', 17401) PARAMETER_ID 
+                from CARDS c WHERE CARD_ID = {card_id}) c ON c.PARAMETER_ID=bruv.PARAMETER_ID 
+        LEFT JOIN discount_CARD_HISTORIES ch ON ch.CARD_ID = {card_id} AND ch.NETWORK_ID = {network_id}
+        WHERE (bru.APP_CODES_REGEX IS null OR bru.APP_CODES_REGEX != 'lyvkit')
+        AND rpr.IS_DELETE = 0 AND bru.IS_DELETE = 0 AND rp.IS_DELETE = 0 AND bru.END_DATE > CURRENT_DATE 
+        AND rp.NETWORK_ID =  {network_id} """
+
+def get_percent_network(item, card_id, network_id, is_discount):
+    if is_discount:
+        sql = sql_get_percent_discount(network_id, card_id)
+    else:
+        sql = sql_get_percent(network_id, card_id)
+    cursor_oracle = create_session_oracle(item)
+    persent = cursor_oracle.execute(sql)
     
     return persent.fetchone()
+
 
 
 def get_bonus_info(item, network_id):
@@ -111,7 +135,7 @@ def get_bonus_info(item, network_id):
                 JOIN RETAIL_POINT_RULE_UNITS_RELS rpr ON rp.RETAIL_POINT_ID =rpr.RETAIL_POINT_ID 
                 JOIN BONUS_RULE_UNITS bru ON rpr.UNIT_ID = bru.unit_id 
                 JOIN BONUS_RULE_UNIT_VALUES bruv ON bruv.UNIT_ID =bru.UNIT_ID
-                WHERE bruv.PARAMETER_ID IN (17, 19, 18, 1, 20, 4)
+                WHERE bruv.PARAMETER_ID IN (17, 19, 18, 1, 20, 4, 17401, 17402)
                 AND rpr.IS_DELETE = 0 AND bru.IS_DELETE = 0 AND rp.IS_DELETE = 0 AND bru.END_DATE > CURRENT_DATE 
                 AND  bru.TEMPLATE_ID = 1 AND rp.NETWORK_ID = {network_id}
                 AND (bru.APP_CODES_REGEX IS NULL OR bru.APP_CODES_REGEX != 'lyvkit')
@@ -120,9 +144,9 @@ def get_bonus_info(item, network_id):
         PIVOT
         (
         max(value)
-        FOR parameter_id IN (1,4,17,18,19,20)
+        FOR parameter_id IN (1,4,17,18,19,20,17401,17402)
         )
-        ORDER BY 1"""  )
+        ORDER BY 1""" )
     
     return bonus.fetchone()
 
@@ -348,19 +372,20 @@ def set_bonuses(user_data):
             new_bonus_type = user_data['new_bonus_type']
             new_bonus_percent = user_data['new_cli_percent']
             network_id = user_data['network_id']
+            is_discount = user_data['is_discount']
             cursor = connection.cursor()
             logger.info(f"Starting change percents: {card_id}, {new_bonus_type}, {new_bonus_percent}, {network_id}")
 
-            histores_id = get_card_histories(cursor, card_id, network_id)
+            histores_id = get_card_histories(cursor, card_id, network_id, is_discount)
             logger.info(f"history_id: {histores_id}")
 
             if not histores_id:
-                set_history(cursor, card_id, network_id, new_bonus_percent)
+                set_history(cursor, card_id, network_id, new_bonus_percent, is_discount)
             
             else:
                 history_id, = histores_id
                 set_bonus_type(cursor, card_id, new_bonus_type)
-                set_bonus_percent(cursor, history_id, new_bonus_percent)
+                set_bonus_percent(cursor, history_id, new_bonus_percent, is_discount)
             
             logger.info("commiting")
             connection.commit()
@@ -378,29 +403,65 @@ def set_bonus_type(cursor_oracle, card_id, new_bonus_type):
     return
 
 
-def set_bonus_percent(cursor_oracle, history_id, new_bonus_percent):
+def set_bonus_percent(cursor_oracle, history_id, new_bonus_percent, is_discount):
+    if is_discount:
+        table = 'DISCOUNT_CARD_HISTORIES'
+    else:
+        table = 'CARD_HISTORIES'
+    
     logger.info(f"updating card_histories")
-    cursor_oracle.execute(f"""update card_histories set current_bonus = {new_bonus_percent} WHERE history_id = {history_id}""")
+    cursor_oracle.execute(f"""update {table} set current_bonus = {new_bonus_percent} WHERE history_id = {history_id}""")
     
     return
 
-def get_card_histories(cursor_oracle, card_id, network_id):
-    history_id = cursor_oracle.execute(f"""SELECT history_id FROM CARD_HISTORIES ch WHERE card_id = {card_id} and network_id={network_id} and ( app_code is null or app_code != 'lyvkit')""")
+def sql_get_history(network_id, card_id):
+    return f"""SELECT history_id FROM CARD_HISTORIES ch WHERE card_id = {card_id} and network_id={network_id} and ( app_code is null or app_code != 'lyvkit')"""
+
+
+def sql_get_history_discount(network_id, card_id):
+    return f"""SELECT history_id FROM DISCOUNT_CARD_HISTORIES ch WHERE card_id = {card_id} and network_id={network_id}"""
+
+
+
+def get_card_histories(cursor_oracle, card_id, network_id, is_discount):
+    if is_discount:
+        sql = sql_get_history_discount(network_id, card_id)
+    else:
+        sql = sql_get_history(network_id, card_id)
+
+    history_id = cursor_oracle.execute(sql)
+
     return history_id.fetchone()
+
+
+def sql_set_history(network_id, card_id, current_bonus):
+    return f"""
+        INSERT INTO CARD_HISTORIES VALUES (CARD_HISTORIES$SEQ.nextval, {card_id}, {network_id}, {current_bonus}, 0, 0, 0, CURRENT_DATE, CURRENT_DATE, 0, 0, (
+            SELECT DISTINCT app_codes_regex FROM 
+                RETAIL_POINTS rp  
+                JOIN RETAIL_POINT_RULE_UNITS_RELS rpr ON rp.RETAIL_POINT_ID =rpr.RETAIL_POINT_ID
+                JOIN BONUS_RULE_UNITS bru ON rpr.UNIT_ID = bru.unit_id AND bru.TEMPLATE_ID = 1
+                WHERE (bru.APP_CODES_REGEX IS null OR bru.APP_CODES_REGEX != 'lyvkit')
+                AND rpr.IS_DELETE = 0 AND bru.IS_DELETE = 0 AND rp.IS_DELETE = 0 AND bru.END_DATE > CURRENT_DATE 
+                AND rp.NETWORK_ID = {network_id}
+            ))"""
+
+def sql_set_history_discount(network_id, card_id, current_bonus):
+    return f"""
+        INSERT INTO DISCOUNT_CARD_HISTORIES VALUES 
+        (DISCOUNT_CARD_HISTORIES$seq.nextval, {card_id}, {network_id}, {current_bonus},0,0,0,0, SYSDATE, SYSDATE, 0)
+        """
     
     
-def set_history(cursor_oracle, card_id, network_id, current_bonus):
+def set_history(cursor_oracle, card_id, network_id, current_bonus, is_discount):
+
+    if is_discount:
+        sql = sql_set_history_discount(network_id, card_id, current_bonus)
+    else:
+        sql = sql_set_history(network_id, card_id, current_bonus)
+
     logger.info(f"inserting card_histories")
-    cursor_oracle.execute(f"""
-    INSERT INTO CARD_HISTORIES VALUES (CARD_HISTORIES$SEQ.nextval, {card_id}, {network_id}, {current_bonus}, 0, 0, 0, CURRENT_DATE, CURRENT_DATE, 0, 0, (
-        SELECT DISTINCT app_codes_regex FROM 
-			RETAIL_POINTS rp  
-	        JOIN RETAIL_POINT_RULE_UNITS_RELS rpr ON rp.RETAIL_POINT_ID =rpr.RETAIL_POINT_ID
-	        JOIN BONUS_RULE_UNITS bru ON rpr.UNIT_ID = bru.unit_id AND bru.TEMPLATE_ID = 1
-	        WHERE (bru.APP_CODES_REGEX IS null OR bru.APP_CODES_REGEX != 'lyvkit')
-	        AND rpr.IS_DELETE = 0 AND bru.IS_DELETE = 0 AND rp.IS_DELETE = 0 AND bru.END_DATE > CURRENT_DATE 
-	        AND rp.NETWORK_ID = {network_id}
-        ))""")
+    cursor_oracle.execute(sql)
     
     return
 
@@ -445,3 +506,19 @@ def finder_main(LIST_PROJECT, requests):
     
                 
     return result
+
+def get_report_cli(item, phone_mobile):
+    logger.info(f"Getting report_cli:{phone_mobile}")
+    
+    cursor_oracle = create_session_oracle(item)
+    result = cursor_oracle.execute(f"""SELECT * FROM (
+        select fio,request_state, REQUEST_DATE , RETAIL_POINT_title, BILL_SUM, 
+        BONUS_SUM_MINUS_ORG_FEE, BONUS_CREDIT_SUM, EXTRA_AMOUNT_WITHDRAW, ext_request_id
+        from PAYMENT_OPERATIONS sd WHERE PHONE_MOBILE = '{phone_mobile}'
+        union
+        SELECT '' as fio ,'PROCESSED', INS_DATE ,'Cмс отбслуживание' , amount ,0, amount, 0, null
+        FROM TRANSACTIONS t
+        WHERE ACCOUNT_ID = (SELECT account_id FROM accounts WHERE cli_id=(SELECT cli_id from PHYSICAL_CLIENTS pc WHERE PHONE_MOBILE = '{phone_mobile}') AND account_type='GLOBAL') AND TRANSACTION_KIND = 'SMS_NOTOFOCATION_FEE_CREDIT'
+        ) order BY 3""")
+    
+    return result.fetchall()

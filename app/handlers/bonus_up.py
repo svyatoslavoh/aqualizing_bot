@@ -18,6 +18,7 @@ class DataBonus(StatesGroup):
     credles = State()
     project = State()
     network_id = State()
+    is_discount = State()
     phone_mobile = State()
     cli_name = State()
     cli_id = State()
@@ -109,10 +110,14 @@ async def change_chosen(message: types.Message, state: FSMContext):
     card = dbworker.get_card_info(user_data['project'], cli_id)
     card_id, card_num, card_type = card
     bonus_info=dbworker.get_bonus_info(user_data['project'], user_data['network_id'])
-    general_max, premium_max, general_min, premium_min, gold_min, gold_max = bonus_info
-    text=f'GENERAL: {general_min}-{general_max}; GENERAL_GOLD: {gold_min}-{gold_max}; GENERAL_PREMIUM: {premium_min}-{premium_max}'
-    cli_percent, = dbworker.get_percent_network(user_data['project'], card_id, user_data['network_id'])
+    general_max, premium_max, general_min, premium_min, gold_min, gold_max, social_min, social_max = bonus_info
+    text=f"""GENERAL: {general_min}-{general_max}; GENERAL_GOLD: {gold_min}-{gold_max}; 
+    GENERAL_PREMIUM: {premium_min}-{premium_max}; SOCIAL: {social_min}-{social_max}"""
+    is_discount = controller.check_discount(user_data['network_id'], user_data['project'], config)
+    cli_percent, = dbworker.get_percent_network(user_data['project'], card_id, user_data['network_id'], is_discount)
     
+    logger.info(f"is_discount: {is_discount}")
+
     await message.answer(text)
     
     await message.reply(f"{cli_name}, {card_num}, {card_type}; Процентная ставка: {cli_percent}")
@@ -125,6 +130,8 @@ async def change_chosen(message: types.Message, state: FSMContext):
     await state.update_data(card_type=card_type)
     await state.update_data(cli_percent=cli_percent)
     await state.update_data(bonus_info=bonus_info)
+    await state.update_data(is_discount=is_discount)
+    
     user_data = await state.get_data()
     
     await message.answer("Введите ставку:", reply_markup=types.ReplyKeyboardRemove())
@@ -140,7 +147,7 @@ async def change_percent(message: types.Message, state: FSMContext):
         return
 
     new_bonus_type = controller.check_bonus(user_data['bonus_info'], new_cli_percent)
-    print(new_bonus_type)
+    logger.info(f"new_bonus_type: {new_bonus_type}")
     
     if not new_bonus_type:
         await message.answer("Вне диапазонов.")
@@ -155,7 +162,7 @@ async def change_percent(message: types.Message, state: FSMContext):
     
     card = dbworker.get_card_info(user_data['project'], user_data['cli_id'])
     card_id, card_num, card_type = card
-    cli_percent, = dbworker.get_percent_network(user_data['project'], card_id, user_data['network_id'])
+    cli_percent, = dbworker.get_percent_network(user_data['project'], card_id, user_data['network_id'], user_data['is_discount'])
     cli_name = user_data['cli_name']
     await message.answer(f"Данные изменены: {cli_name}, {card_num}, {card_type}; Процентная ставка: {cli_percent}")
     await state.finish()

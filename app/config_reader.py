@@ -6,6 +6,9 @@ from dataclasses import dataclass
 class TgBot:
     token: str
     admin_id: list
+    che: list
+    discount_projects: list
+    discount_networks: list
     conf_url: str
 
 
@@ -24,6 +27,9 @@ def load_config(path: str):
         tg_bot=TgBot(
             token=tg_bot["token"],
             admin_id=tg_bot["admin_id"].split(','),
+            che=tg_bot["che"].split(','),
+            discount_projects=tg_bot["discount_projects"].split(','),
+            discount_networks=tg_bot["discount_networks"].split(','),
             conf_url=tg_bot["conf_url"]
         )
     )
